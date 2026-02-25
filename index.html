@@ -1,57 +1,108 @@
 <!DOCTYPE html>
 <html>
+<head>
+  <style>
+  body {
+    /*margin:20px;*/
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-flow: column;
+  }
+  textarea {
+    width: inherit;
+    height: inherit; 
+    resize: none; 
+  }
+  button {
+    margin-top: 20px;
+    width: 120px;
+    height: 30px;
+  }
+  h1 {
+    /*margin-bottom: 20px;*/
+  }
+  .text {
+    width: 90vw;
+    height: 70vh;
+    position: relative;
+  }
+  #char-count {
+    position: absolute;
+    bottom: 0;
+    right: 2px;
+  }
+  </style>
+</head>
 <body>
 
-<textarea id="txt" rows="6" cols="50"></textarea><br>
-<button onclick="gen()">Generate URL</button>
+  <h1>URL Paste Bin</h1>
+  <div class="text">
+    <textarea id="txt" maxlength="8000"></textarea>
+    <span id="char-count">0/8000</span>
+  </div>
+  <button onclick="gen()">Generate URL</button>
 
-<script type="module">
-async function initBrotli() {
-  // import default Brotli export for browser
-  const brotliModule = await import("https://unpkg.com/brotli-wasm@3.0.1/index.web.js?module");
-  return await brotliModule.default;
-}
+  <script>
+    // textarea char count
+    // char limit: 8000
+    document.addEventListener("keyup", e => {
+      charCount = document.getElementById("txt").value.length;
+      document.getElementById("char-count").innerText = `${charCount}/8000`;
+    });
+  </script>
 
-const brotliPromise = initBrotli();
+  <script type="module">
+    // compression and decompression of the url data
+    // using Brotli lossless compression and Base64 encoding
+    async function initBrotli() {
+      const brotliModule = await import("https://unpkg.com/brotli-wasm@3.0.1/index.web.js?module");
+      return await brotliModule.default;
+    }
 
-function base64UrlEncode(bytes) {
-  let bin = "";
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+    const brotliPromise = initBrotli();
 
-function base64UrlDecode(str) {
-  str = str.replace(/-/g, "+").replace(/_/g, "/");
-  const bin = atob(str);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
+    function base64UrlEncode(bytes) {
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
 
-window.gen = async function () {
-  const text = document.getElementById("txt").value;
-  const data = new TextEncoder().encode(text);
+    function base64UrlDecode(str) {
+      str = str.replace(/-/g, "+").replace(/_/g, "/");
+      const bin = atob(str);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
 
-  const brotli = await brotliPromise;
+    window.gen = async function () {
+      const text = document.getElementById("txt").value;
+      const data = new TextEncoder().encode(text);
 
-  // ✔ correct browser API
-  const compressed = brotli.compress(data, { quality: 11 });
+      const brotli = await brotliPromise;
 
-  const encoded = base64UrlEncode(compressed);
-  const url = location.origin + location.pathname + "#" + encoded;
+      const compressed = brotli.compress(data, { quality: 11 });
 
-  prompt("URL:", url);
-};
+      const encoded = base64UrlEncode(compressed);
+      const url = location.origin + location.pathname + "#" + encoded;
 
-if (location.hash.length > 1) {
-  (async () => {
-    const compressed = base64UrlDecode(location.hash.slice(1));
-    const brotli = await brotliPromise;
-    const decompressed = brotli.decompress(compressed);
-    document.getElementById("txt").value = new TextDecoder().decode(decompressed);
-  })();
-}
-</script>
+      prompt("URL:", url);
+    };
+
+    if (location.hash.length > 1) {
+      (async () => {
+        const compressed = base64UrlDecode(location.hash.slice(1));
+        const brotli = await brotliPromise;
+        const decompressed = brotli.decompress(compressed);
+        document.getElementById("txt").value = new TextDecoder().decode(decompressed);
+
+        // update char count
+        charCount = document.getElementById("txt").value.length;
+        document.getElementById("char-count").innerText = `${charCount}/8000`;
+      })();
+    }
+  </script>
 
 </body>
 </html>
