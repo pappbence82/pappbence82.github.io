@@ -2,64 +2,73 @@
 <html>
 <head>
   <style>
-  body {
-    /*margin:20px;*/
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-flow: column;
-  }
-  textarea {
-    width: inherit;
-    height: inherit; 
-    resize: none; 
-  }
-  button {
-    margin-top: 20px;
-    width: 120px;
-    height: 30px;
-  }
-  h1 {
-    /*margin-bottom: 20px;*/
-  }
-  .text {
-    width: 90vw;
-    height: 70vh;
-    position: relative;
-  }
-  #char-count {
-    position: absolute;
-    bottom: 0;
-    right: 2px;
-  }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-flow: column;
+      font-family: sans-serif;
+    }
+    textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      box-sizing: border-box;
+      padding: 10px;
+      font-size: 16px;
+      line-height: 1.4;
+    }
+    button {
+      margin-top: 20px;
+      width: 150px;
+      height: 35px;
+      font-size: 16px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    .text {
+      width: 90vw;
+      height: 70vh;
+      position: relative;
+    }
+    #char-count {
+      position: absolute;
+      bottom: 2px;
+      right: 5px;
+      font-size: 14px;
+      color: #555;
+    }
   </style>
 </head>
 <body>
 
   <h1>URL Paste Bin</h1>
   <div class="text">
-    <textarea id="txt" maxlength="8000"></textarea>
-    <span id="char-count">0/8000</span>
+    <textarea id="txt" spellcheck="false"></textarea>
+    <span id="char-count">0/50000</span>
   </div>
   <button onclick="gen()">Generate URL</button>
 
   <script>
-    // textarea char count
-    // char limit: 8000
-    document.addEventListener("keyup", e => {
-      charCount = document.getElementById("txt").value.length;
-      document.getElementById("char-count").innerText = `${charCount}/8000`;
+    const MAX_CHARS = 50000; // max characters
+    const txt = document.getElementById("txt");
+    const charCountEl = document.getElementById("char-count");
+
+    txt.maxLength = MAX_CHARS;
+    charCountEl.innerText = `0/${MAX_CHARS}`;
+
+    txt.addEventListener("input", () => {
+      const len = txt.value.length;
+      charCountEl.innerText = `${len}/${MAX_CHARS}`;
     });
   </script>
 
   <script type="module">
-    // compression and decompression of the url data
-    // using Brotli lossless compression and Base64 encoding
     async function initBrotli() {
       const brotliModule = await import("https://unpkg.com/brotli-wasm@3.0.1/index.web.js?module");
       return await brotliModule.default;
     }
-
     const brotliPromise = initBrotli();
 
     function base64UrlEncode(bytes) {
@@ -77,16 +86,12 @@
     }
 
     window.gen = async function () {
-      const text = document.getElementById("txt").value;
+      const text = txt.value;
       const data = new TextEncoder().encode(text);
-
       const brotli = await brotliPromise;
-
       const compressed = brotli.compress(data, { quality: 11 });
-
       const encoded = base64UrlEncode(compressed);
       const url = location.origin + location.pathname + "#" + encoded;
-
       prompt("URL:", url);
     };
 
@@ -95,11 +100,8 @@
         const compressed = base64UrlDecode(location.hash.slice(1));
         const brotli = await brotliPromise;
         const decompressed = brotli.decompress(compressed);
-        document.getElementById("txt").value = new TextDecoder().decode(decompressed);
-
-        // update char count
-        charCount = document.getElementById("txt").value.length;
-        document.getElementById("char-count").innerText = `${charCount}/8000`;
+        txt.value = new TextDecoder().decode(decompressed);
+        charCountEl.innerText = `${txt.value.length}/${MAX_CHARS}`;
       })();
     }
   </script>
