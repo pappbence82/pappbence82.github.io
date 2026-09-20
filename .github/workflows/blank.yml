@@ -2,8 +2,6 @@ name: Import projects
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
@@ -13,38 +11,84 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out Pages repository
+      - name: Checkout Pages repository
         uses: actions/checkout@v4
         with:
           path: pages
 
-      - name: Check out WebGL repository
-        uses: actions/checkout@v4
-        with:
-          repository: YOUR_USERNAME/webgl-project
-          path: source-project
-          fetch-depth: 1
-
-      - name: Copy project if it has the marker file
+      - name: Clone and import projects
+        env:
+          USERNAME: YOUR_GITHUB_USERNAME
         run: |
-          if [ -f source-project/.publish-to-pages ]; then
-            rm -rf pages/projects/webgl
-            mkdir -p pages/projects/webgl
+          set -e
 
-            rsync -av \
-              --exclude='.git' \
-              --exclude='.publish-to-pages' \
-              source-project/ pages/projects/webgl/
-          else
-            echo "Marker file not found; nothing copied."
-          fi
+          # Add any repositories you want to publish here.
+          PROJECTS="
+          project-one
+          project-two
+          webgl-demo
+          threejs-game
+          "
 
-      - name: Commit and push changes
+          mkdir -p pages/projects
+
+          for REPO in $PROJECTS; do
+            echo "Checking $USERNAME/$REPO"
+
+            rm -rf "source-$REPO"
+
+            git clone --depth 1 \
+              "https://github.com/$USERNAME/$REPO.git" \
+              "source-$REPO"
+
+            if [ -f "source-$REPO/.publish-to-pages" ]; then
+              echo "Publishing $REPO"
+
+              rm -rf "pages/projects/$REPO"
+              mkdir -p "pages/projects/$REPO"
+
+              rsync -av \
+                --exclude=".git" \
+                --exclude=".publish-to-pages" \
+                "source-$REPO/" \
+                "pages/projects/$REPO/"
+            else
+              echo "Skipping $REPO: no .publish-to-pages file"
+            fi
+          done
+
+      - name: Create project index
+        run: |
+          cat > pages/projects/index.html <<'EOF'
+          <!doctype html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Projects</title>
+          </head>
+          <body>
+            <h1>Projects</h1>
+            <ul>
+          EOF
+
+          for DIRECTORY in pages/projects/*/; do
+            [ -d "$DIRECTORY" ] || continue
+            NAME=$(basename "$DIRECTORY")
+            echo "<li><a href=\"./$NAME/\">$NAME</a></li>" >> pages/projects/index.html
+          done
+
+          cat >> pages/projects/index.html <<'EOF'
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Commit imported projects
         working-directory: pages
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add projects/webgl
-          git commit -m "Import WebGL project" || exit 0
+          git add projects
+          git commit -m "Update imported projects" || echo "No changes to commit"
           git push
